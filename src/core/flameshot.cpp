@@ -487,6 +487,11 @@ void Flameshot::exportCapture(const QPixmap& capture,
     }
 
     if (tasks & CR::COPY) {
+        // The notification must go out before the clipboard is grabbed:
+        // on Linux a D-Bus notification sent afterwards can freeze the
+        // application (see the note in saveToClipboard, screenshotsaver.cpp).
+        AbstractLogger::info()
+          << QObject::tr("Capture saved to clipboard.");
         FlameshotDaemon::copyToClipboard(capture);
     }
 

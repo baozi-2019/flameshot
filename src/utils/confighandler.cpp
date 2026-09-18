@@ -137,7 +137,7 @@ static QMap<class QString, QSharedPointer<ValueHandler>>
     OPTION("showSelectionGeometryHideTime", LowerBoundedInt  ( 0, 3000       )),
     OPTION("jpegQuality"                 , BoundedInt        ( 0,100,75      )),
     OPTION("reverseArrow"                ,Bool               ( false         )),
-    OPTION("arrowStyle"                  ,BoundedInt         ( 0, 1, 0       )),
+    OPTION("arrowStyle"                  ,BoundedInt         ( 0, 5, 0       )),
     OPTION("insecurePixelate"            ,Bool               ( false         )),
 #if defined(Q_OS_WIN)
     // Not visible on settings dialog

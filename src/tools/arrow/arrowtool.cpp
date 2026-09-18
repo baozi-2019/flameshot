@@ -14,42 +14,92 @@ namespace {
 const int ArrowWidth = 10;
 const int ArrowHeight = 18;
 const int MinArrowStyle = 0;
-const int MaxArrowStyle = 1;
+const int MaxArrowStyle = 5;
 
 bool isValidArrowStyle(int style)
 {
     return style >= MinArrowStyle && style <= MaxArrowStyle;
 }
 
-QPainterPath getArrowHead(QPoint p1, QPoint p2, const int thickness)
+// Computes the base line of an arrowhead: its two corners, centered on the
+// shaft at the base of the head.
+QLineF getArrowHeadBase(const QPoint& tail,
+                        const QPoint& tip,
+                        const int thickness)
 {
-    QLineF base(p1, p2);
-    // Create the vector for the position of the base  of the arrowhead
-    QLineF temp(QPoint(0, 0), p2 - p1);
-    int val = ArrowHeight + thickness * 4;
-    if (base.length() < (val - thickness * 2)) {
-        val = static_cast<int>(base.length() + thickness * 2);
+    QLineF base(tail, tip);
+    // Create the vector for the position of the base of the arrowhead
+    QLineF temp(QPoint(0, 0), tip - tail);
+    int val = ArrowHeight + (thickness * 4);
+    if (base.length() < (val - (thickness * 2))) {
+        val = static_cast<int>(base.length() + (thickness * 2));
     }
-    temp.setLength(base.length() + thickness * 2 - val);
+    temp.setLength(base.length() + (thickness * 2) - val);
     // Move across the line up to the head
     QPointF bottomTranslation(temp.p2());
 
     // Rotate base of the arrowhead
-    base.setLength(ArrowWidth + thickness * 2);
-    base.setAngle(base.angle() + 90);
+    base.setLength(ArrowWidth + (thickness * 2));
+    constexpr int PerpendicularAngle = 90;
+    base.setAngle(base.angle() + PerpendicularAngle);
     // Move to the correct point
-    QPointF temp2 = p1 - base.p2();
+    QPointF temp2 = tail - base.p2();
     // Center it
     QPointF centerTranslation((temp2.x() / 2), (temp2.y() / 2));
 
     base.translate(bottomTranslation);
     base.translate(centerTranslation);
+    return base;
+}
 
+QPainterPath getArrowHead(const QPoint& tail,
+                          const QPoint& tip,
+                          const int thickness)
+{
+    const QLineF base = getArrowHeadBase(tail, tip, thickness);
     QPainterPath path;
-    path.moveTo(p2);
+    path.moveTo(tip);
     path.lineTo(base.p1());
     path.lineTo(base.p2());
-    path.lineTo(p2);
+    path.lineTo(tip);
+    return path;
+}
+
+// Filled head with straight edges and a concave back (PowerPoint style).
+QPainterPath getStealthArrowHead(const QPoint& tail,
+                                 const QPoint& tip,
+                                 const int thickness)
+{
+    const QLineF base = getArrowHeadBase(tail, tip, thickness);
+    const QPointF baseCenter = base.center();
+    const qreal halfWidth = base.length() / 2.0;
+    const QLineF axis(tail, tip);
+    const QPointF direction = axis.length() > 0
+                                ? QPointF(tip - tail) / axis.length()
+                                : QPointF(1, 0);
+    const qreal notchDepth =
+      std::min<qreal>(QLineF(baseCenter, tip).length() * 0.45, halfWidth);
+    const QPointF notch = baseCenter + direction * notchDepth;
+
+    QPainterPath path;
+    path.moveTo(tip);
+    path.lineTo(base.p1());
+    path.lineTo(notch);
+    path.lineTo(base.p2());
+    path.lineTo(tip);
+    return path;
+}
+
+// Two strokes forming a "V", left open at the back of the head.
+QPainterPath getOpenArrowHead(const QPoint& tail,
+                              const QPoint& tip,
+                              const int thickness)
+{
+    const QLineF base = getArrowHeadBase(tail, tip, thickness);
+    QPainterPath path;
+    path.moveTo(base.p1());
+    path.lineTo(tip);
+    path.lineTo(base.p2());
     return path;
 }
 
@@ -211,6 +261,10 @@ QWidget* ArrowTool::configurationWidget()
 
     styleSelector->addItem(tr("Default"));
     styleSelector->addItem(tr("Curved"));
+    styleSelector->addItem(tr("Double-headed"));
+    styleSelector->addItem(tr("Stealth"));
+    styleSelector->addItem(tr("Outline"));
+    styleSelector->addItem(tr("Open"));
     styleSelector->setCurrentIndex(static_cast<int>(m_arrowStyle));
     connect(styleSelector,
             qOverload<int>(&QComboBox::currentIndexChanged),
@@ -246,17 +300,46 @@ void ArrowTool::process(QPainter& painter, const QPixmap& pixmap)
 
     Q_UNUSED(pixmap)
     painter.setPen(QPen(color(), size()));
-    if (m_arrowStyle == ArrowStyle::Default) {
-        painter.drawLine(getShorterLine(head, tail, size()));
-        m_arrowPath = getArrowHead(head, tail, size());
-        painter.fillPath(m_arrowPath, QBrush(color()));
-        return;
+    switch (m_arrowStyle) {
+        case ArrowStyle::Default:
+            painter.drawLine(getShorterLine(head, tail, size()));
+            m_arrowPath = getArrowHead(head, tail, size());
+            painter.fillPath(m_arrowPath, QBrush(color()));
+            break;
+        case ArrowStyle::Curved:
+            painter.setPen(QPen(color(), size(), Qt::SolidLine, Qt::FlatCap));
+            painter.drawLine(getCurvedArrowShaft(head, tail, size()));
+            m_arrowPath = getCurvedArrowHead(head, tail, size());
+            painter.fillPath(m_arrowPath, QBrush(color()));
+            break;
+        case ArrowStyle::Double: {
+            const QLine shaft(getShorterLine(head, tail, size()).p2(),
+                              getShorterLine(tail, head, size()).p2());
+            painter.drawLine(shaft);
+            m_arrowPath = getArrowHead(head, tail, size());
+            painter.fillPath(m_arrowPath, QBrush(color()));
+            const QPainterPath tailHead = getArrowHead(tail, head, size());
+            painter.fillPath(tailHead, QBrush(color()));
+            m_arrowPath.addPath(tailHead);
+            break;
+        }
+        case ArrowStyle::Stealth:
+            painter.drawLine(getShorterLine(head, tail, size()));
+            m_arrowPath = getStealthArrowHead(head, tail, size());
+            painter.fillPath(m_arrowPath, QBrush(color()));
+            break;
+        case ArrowStyle::Outline:
+            painter.drawLine(getShorterLine(head, tail, size()));
+            m_arrowPath = getArrowHead(head, tail, size());
+            painter.drawPath(m_arrowPath);
+            break;
+        case ArrowStyle::Open:
+            painter.setPen(QPen(color(), size(), Qt::SolidLine, Qt::FlatCap));
+            painter.drawLine(getShorterLine(head, tail, size()));
+            m_arrowPath = getOpenArrowHead(head, tail, size());
+            painter.drawPath(m_arrowPath);
+            break;
     }
-
-    painter.setPen(QPen(color(), size(), Qt::SolidLine, Qt::FlatCap));
-    painter.drawLine(getCurvedArrowShaft(head, tail, size()));
-    m_arrowPath = getCurvedArrowHead(head, tail, size());
-    painter.fillPath(m_arrowPath, QBrush(color()));
 }
 
 void ArrowTool::pressed(CaptureContext& context)

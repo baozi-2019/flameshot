@@ -38,6 +38,10 @@ private:
     {
         Default = 0,
         Curved = 1,
+        Double = 2,
+        Stealth = 3,
+        Outline = 4,
+        Open = 5,
     };
 
     QPainterPath m_arrowPath;

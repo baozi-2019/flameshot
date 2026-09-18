@@ -5,6 +5,11 @@
 
 #include <QEvent>
 #include <QKeyEvent>
+#include <QMouseEvent>
+
+namespace {
+constexpr int DRAG_MARGIN = 6;
+}
 
 TextWidget::TextWidget(QWidget* parent)
   : QTextEdit(parent)
@@ -15,6 +20,15 @@ TextWidget::TextWidget(QWidget* parent)
     setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     setContextMenuPolicy(Qt::NoContextMenu);
+}
+
+bool TextWidget::isOnDragMargin(const QPoint& pos) const
+{
+    const QRect r = rect();
+    return pos.x() - r.left() < DRAG_MARGIN ||
+           r.right() - pos.x() < DRAG_MARGIN ||
+           pos.y() - r.top() < DRAG_MARGIN ||
+           r.bottom() - pos.y() < DRAG_MARGIN;
 }
 
 bool TextWidget::event(QEvent* e)
@@ -39,6 +53,52 @@ void TextWidget::keyPressEvent(QKeyEvent* e)
     }
 
     QTextEdit::keyPressEvent(e);
+}
+
+void TextWidget::mousePressEvent(QMouseEvent* event)
+{
+    if (event->button() == Qt::LeftButton &&
+        isOnDragMargin(event->pos())) {
+        m_dragging = true;
+        m_dragOffset = event->pos();
+        setCursor(Qt::ClosedHandCursor);
+        // Keep receiving mouse moves even if the cursor leaves the widget
+        // while it is being dragged.
+        grabMouse();
+        event->accept();
+        return;
+    }
+    QTextEdit::mousePressEvent(event);
+}
+
+void TextWidget::mouseMoveEvent(QMouseEvent* event)
+{
+    if (m_dragging) {
+        if (event->buttons() & Qt::LeftButton) {
+            const QPoint newPos = mapToParent(event->pos() - m_dragOffset);
+            move(newPos);
+            emit dragged(newPos);
+        }
+        event->accept();
+        return;
+    }
+    if (event->buttons() == Qt::NoButton) {
+        setCursor(isOnDragMargin(event->pos()) ? Qt::OpenHandCursor
+                                                : Qt::IBeamCursor);
+    }
+    QTextEdit::mouseMoveEvent(event);
+}
+
+void TextWidget::mouseReleaseEvent(QMouseEvent* event)
+{
+    if (m_dragging && event->button() == Qt::LeftButton) {
+        m_dragging = false;
+        releaseMouse();
+        unsetCursor();
+        event->accept();
+        return;
+    }
+    QTextEdit::mouseReleaseEvent(event);
 }
 
 void TextWidget::showEvent(QShowEvent* e)

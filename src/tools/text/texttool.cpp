@@ -108,6 +108,11 @@ QWidget* TextTool::widget()
     m_widget->setText(m_text);
     m_widget->selectAll();
     connect(m_widget, &TextWidget::textUpdated, this, &TextTool::updateText);
+    // Keep the committed text position in sync while the editor is dragged.
+    connect(
+      m_widget, &TextWidget::dragged, this, [this](const QPoint& pos) {
+          drawEnd(pos);
+      });
     connect(
       m_widget,
       &TextWidget::editingFinished,
@@ -245,6 +250,11 @@ void TextTool::paintMousePreview(QPainter& painter,
 
 void TextTool::drawEnd(const QPoint& point)
 {
+    if (editMode() && m_textArea.topLeft() != point) {
+        // The editor of an existing text object was dragged: record the
+        // position change so that committing the edit pushes an undo state.
+        m_posChanged = true;
+    }
     m_textArea.moveTo(point);
 }
 
@@ -353,11 +363,13 @@ void TextTool::setEditMode(bool editMode)
 {
     if (editMode) {
         m_textOld = m_text;
+        m_posChanged = false;
     }
     CaptureTool::setEditMode(editMode);
 }
 
 bool TextTool::isChanged()
 {
-    return QString::compare(m_text, m_textOld, Qt::CaseInsensitive) != 0;
+    return m_posChanged ||
+           QString::compare(m_text, m_textOld, Qt::CaseInsensitive) != 0;
 }

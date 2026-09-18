@@ -819,6 +819,21 @@ bool CaptureWidget::startDrawObjectTool(const QPoint& pos)
         if (commitCurrentTool()) {
             return false;
         }
+        // With the text tool, pressing on an already committed text object
+        // starts dragging it instead of creating a new text object.
+        if (m_activeButton->tool()->type() == CaptureTool::TYPE_TEXT) {
+            const int index = m_captureToolObjects.find(pos, size());
+            if (index >= 0) {
+                auto toolItem = m_captureToolObjects.at(index);
+                if (toolItem && toolItem->type() == CaptureTool::TYPE_TEXT &&
+                    toolItem->boundingRect().contains(pos)) {
+                    m_panel->setActiveLayer(index);
+                    drawObjectSelection();
+                    m_textToolDragExisting = true;
+                    return true;
+                }
+            }
+        }
         m_activeTool = m_activeButton->tool()->copy(this);
 
         connect(this,
@@ -878,6 +893,7 @@ void CaptureWidget::mousePressEvent(QMouseEvent* e)
     activateWindow();
     m_startMove = false;
     m_startMovePos = QPoint();
+    m_textToolDragExisting = false;
     m_mousePressedPos = e->pos();
     m_activeToolOffsetToMouseOnStart = QPoint();
     if (m_colorPicker->isVisible()) {
@@ -925,6 +941,7 @@ void CaptureWidget::mouseDoubleClickEvent(QMouseEvent* event)
         // Start object editing
         auto activeTool = m_captureToolObjects.at(activeLayerIndex);
         if (activeTool && activeTool->type() == CaptureTool::TYPE_TEXT) {
+            m_textToolDragExisting = false;
             m_activeTool = activeTool;
             m_mouseIsClicked = false;
             m_context.mousePos = *m_activeTool->pos();
@@ -970,7 +987,8 @@ void CaptureWidget::mouseMoveEvent(QMouseEvent* e)
     }
 
     // The rest assumes that left mouse button is clicked
-    if (!m_activeButton && m_panel->activeLayerIndex() >= 0) {
+    if (m_textToolDragExisting ||
+        (!m_activeButton && m_panel->activeLayerIndex() >= 0)) {
         // Move existing object
         if (!m_startMove) {
             // Check for the minimal offset to start moving an object
@@ -1058,6 +1076,7 @@ void CaptureWidget::mouseReleaseEvent(QMouseEvent* e)
     }
     m_mouseIsClicked = false;
     m_activeToolIsMoved = false;
+    m_textToolDragExisting = false;
 
     updateSelectionState();
     updateCursor();

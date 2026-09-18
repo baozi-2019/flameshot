@@ -226,6 +226,9 @@ private:
     // For start moving after more than X offset
     QPoint m_startMovePos;
     bool m_startMove;
+    // Dragging an already committed text object while the text tool is
+    // active (started by pressing on top of the object).
+    bool m_textToolDragExisting{ false };
 
     // Grid
     bool m_displayGrid{ false };

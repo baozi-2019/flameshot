@@ -4,34 +4,45 @@
 #include <QString>
 #include <QTextStream>
 
+#include <cstdint>
+
 /**
  * @brief A class that allows you to log events to where they need to go.
  */
 class AbstractLogger
 {
 public:
-    enum Target
+    enum Target : std::uint8_t
     {
         Notification = 0x01,
         Stderr = 0x02,
         LogFile = 0x08,
         String = 0x10,
         Stdout = 0x20,
-        Default = Notification | LogFile | Stderr,
+        // Notification | LogFile | Stderr; written as a literal because the
+        // bitwise OR of the enumerators promotes to signed int, which
+        // hicpp-signed-bitwise rejects even with an unsigned base type.
+        Default = 0x2B,
     };
 
-    enum Channel
+    enum Channel : std::uint8_t
     {
         Info,
         Warning,
         Error
     };
 
-    AbstractLogger(Channel channel = Info, int targets = Default);
-    AbstractLogger(QString& str,
-                   Channel channel,
-                   int additionalTargets = String);
+    explicit AbstractLogger(Channel channel = Info, int targets = Default);
+    explicit AbstractLogger(QString& str,
+                            Channel channel,
+                            int additionalTargets = String);
     ~AbstractLogger();
+
+    // The logger owns its output streams; copying would double-delete them.
+    AbstractLogger(const AbstractLogger&) = delete;
+    AbstractLogger& operator=(const AbstractLogger&) = delete;
+    AbstractLogger(AbstractLogger&&) = default;
+    AbstractLogger& operator=(AbstractLogger&&) = default;
 
     // Convenience functions
     static AbstractLogger info(int targets = Default);
@@ -45,7 +56,7 @@ public:
     AbstractLogger& enableMessageHeader(bool enable);
 
 private:
-    QString messageHeader(Channel channel, Target target);
+    [[nodiscard]] QString messageHeader(Channel channel, Target target) const;
 
     int m_targets;
     Channel m_defaultChannel;

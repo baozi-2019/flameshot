@@ -2,13 +2,22 @@
 #include "utils/systemnotification.h"
 
 #include <QFileInfo>
-#include <cassert>
+
+namespace {
+// Test a Target bitmask without signed bitwise operands and with an explicit
+// comparison instead of an implicit int-to-bool conversion.
+bool hasTarget(int targets, AbstractLogger::Target target)
+{
+    return (static_cast<unsigned int>(targets) &
+            static_cast<unsigned int>(target)) != 0;
+}
+} // unnamed namespace
 
 AbstractLogger::AbstractLogger(Channel channel, int targets)
   : m_defaultChannel(channel)
   , m_targets(targets)
 {
-    if (targets & LogFile) {
+    if (hasTarget(targets, LogFile)) {
         // TODO
     }
 }
@@ -19,8 +28,8 @@ AbstractLogger::AbstractLogger(Channel channel, int targets)
  */
 AbstractLogger::AbstractLogger(QString& str,
                                Channel channel,
-                               int additionalChannels)
-  : AbstractLogger(channel, additionalChannels)
+                               int additionalTargets)
+  : AbstractLogger(channel, additionalTargets)
 {
     m_textStreams << new QTextStream(&str);
 }
@@ -32,39 +41,39 @@ AbstractLogger::~AbstractLogger()
 
 AbstractLogger AbstractLogger::info(int targets)
 {
-    return { Info, targets };
+    return AbstractLogger(Info, targets);
 }
 
 AbstractLogger AbstractLogger::warning(int targets)
 {
-    return { Warning, targets };
+    return AbstractLogger(Warning, targets);
 }
 
 AbstractLogger AbstractLogger::error(int targets)
 {
-    return { Error, targets };
+    return AbstractLogger(Error, targets);
 }
 
 AbstractLogger& AbstractLogger::sendMessage(const QString& msg, Channel channel)
 {
-    if (m_targets & Notification) {
+    if (hasTarget(m_targets, Notification)) {
         SystemNotification().sendMessage(
           msg, messageHeader(channel, Notification), m_notificationPath);
     }
     if (!m_textStreams.isEmpty()) {
-        for (auto* stream : m_textStreams) {
+        for (auto* stream : m_textStreams) { // NOLINT(altera-unroll-loops)
             *stream << messageHeader(channel, String) << msg << "\n";
         }
     }
-    if (m_targets & LogFile) {
+    if (hasTarget(m_targets, LogFile)) {
         // TODO
     }
-    if (m_targets & Stderr) {
+    if (hasTarget(m_targets, Stderr)) {
         QTextStream stream(stderr);
         stream << messageHeader(channel, Stderr) << msg << "\n";
     }
 
-    if (m_targets & Stdout) {
+    if (hasTarget(m_targets, Stdout)) {
         QTextStream stream(stdout);
         stream << messageHeader(channel, Stdout) << msg << "\n";
     }
@@ -94,12 +103,10 @@ AbstractLogger& AbstractLogger::addOutputString(QString& str)
  */
 AbstractLogger& AbstractLogger::attachNotificationPath(const QString& path)
 {
-    if (m_targets & Notification) {
+    if (hasTarget(m_targets, Notification)) {
         m_notificationPath = path;
-    } else {
-        assert("Cannot attach notification path to a logger without a "
-               "notification channel.");
     }
+    // Attaching a path without a notification target is silently ignored.
     return *this;
 }
 
@@ -115,7 +122,7 @@ AbstractLogger& AbstractLogger::enableMessageHeader(bool enable)
 /**
  * @brief Generate a message header for the given channel and target.
  */
-QString AbstractLogger::messageHeader(Channel channel, Target target)
+QString AbstractLogger::messageHeader(Channel channel, Target target) const
 {
     if (!m_enableMessageHeader) {
         return "";
@@ -132,7 +139,6 @@ QString AbstractLogger::messageHeader(Channel channel, Target target)
     if (target == Notification) {
         messageChannel[0] = messageChannel[0].toUpper();
         return "Flameshot " + messageChannel;
-    } else {
-        return "flameshot: " + messageChannel + ": ";
     }
+    return "flameshot: " + messageChannel + ": ";
 }

@@ -5,12 +5,14 @@
 
 #include <QString>
 
+#include <cstdint>
+
 class DesktopInfo
 {
 public:
     DesktopInfo();
 
-    enum WM
+    enum WM : std::uint8_t
     {
         GNOME,
         KDE,

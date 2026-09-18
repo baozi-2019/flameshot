@@ -7,14 +7,14 @@
 
 DesktopInfo::DesktopInfo()
 {
-    auto e = QProcessEnvironment::systemEnvironment();
-    XDG_CURRENT_DESKTOP = e.value(QStringLiteral("XDG_CURRENT_DESKTOP"));
-    XDG_SESSION_TYPE = e.value(QStringLiteral("XDG_SESSION_TYPE"));
-    WAYLAND_DISPLAY = e.value(QStringLiteral("WAYLAND_DISPLAY"));
-    KDE_FULL_SESSION = e.value(QStringLiteral("KDE_FULL_SESSION"));
+    auto environment = QProcessEnvironment::systemEnvironment();
+    XDG_CURRENT_DESKTOP = environment.value(QStringLiteral("XDG_CURRENT_DESKTOP"));
+    XDG_SESSION_TYPE = environment.value(QStringLiteral("XDG_SESSION_TYPE"));
+    WAYLAND_DISPLAY = environment.value(QStringLiteral("WAYLAND_DISPLAY"));
+    KDE_FULL_SESSION = environment.value(QStringLiteral("KDE_FULL_SESSION"));
     GNOME_DESKTOP_SESSION_ID =
-      e.value(QStringLiteral("GNOME_DESKTOP_SESSION_ID"));
-    DESKTOP_SESSION = e.value(QStringLiteral("DESKTOP_SESSION"));
+      environment.value(QStringLiteral("GNOME_DESKTOP_SESSION_ID"));
+    DESKTOP_SESSION = environment.value(QStringLiteral("DESKTOP_SESSION"));
 }
 
 bool DesktopInfo::waylandDetected()
@@ -28,7 +28,7 @@ DesktopInfo::WM DesktopInfo::windowManager()
 {
     DesktopInfo::WM res = DesktopInfo::OTHER;
     QStringList desktops = XDG_CURRENT_DESKTOP.split(QChar(':'));
-    for (auto& desktop : desktops) {
+    for (auto& desktop : desktops) { // NOLINT(altera-unroll-loops)
         if (desktop.contains(QLatin1String("GNOME"), Qt::CaseInsensitive)) {
             return DesktopInfo::GNOME;
         }

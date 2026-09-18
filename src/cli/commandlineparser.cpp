@@ -13,8 +13,12 @@ CommandLineParser::CommandLineParser()
 
 namespace {
 
-AbstractLogger out =
-  AbstractLogger::info(AbstractLogger::Stdout).enableMessageHeader(false);
+// AbstractLogger is not copyable; build the CLI loggers in place.
+AbstractLogger out = [] {
+    AbstractLogger logger(AbstractLogger::Info, AbstractLogger::Stdout);
+    logger.enableMessageHeader(false);
+    return logger;
+}();
 AbstractLogger err = AbstractLogger::error(AbstractLogger::Stderr);
 
 auto versionOption =
